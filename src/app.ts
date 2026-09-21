@@ -2,6 +2,7 @@ import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { itemsRouter } from './routes/items.js';
 import { ordersRouter } from './routes/orders.js';
+import { supermarketsRouter } from './routes/supermarkets.js';
 import { syncRouter } from './routes/sync.js';
 
 export const app = express();
@@ -29,6 +30,14 @@ app.get('/', (_req: Request, res: Response) => {
       'PATCH  /api/orders/:id/items/:itemId',
       'DELETE /api/orders/:id/items/:itemId',
       'POST   /api/orders/:id/checkout (pay & close the order)',
+      'POST   /api/supermarkets         (register my store, JWT required)',
+      'GET    /api/supermarkets/me      (my store)',
+      'GET    /api/supermarkets/me/items',
+      'POST   /api/supermarkets/me/items',
+      'PATCH  /api/supermarkets/me/items/:id',
+      'DELETE /api/supermarkets/me/items/:id',
+      'GET    /api/supermarkets/me/sales',
+      'GET    /api/supermarkets/me/stats (earnings)',
     ],
   });
 });
@@ -39,6 +48,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 app.use('/api/items', itemsRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/supermarkets', supermarketsRouter);
 app.use('/api/sync', syncRouter);
 
 // 404 for unknown routes

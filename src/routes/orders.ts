@@ -1,6 +1,7 @@
 import { Router, type Response } from 'express';
 import { supabase } from '../db.js';
 import { computeTotal, money, normOrder, normOrderItem, toNumber } from '../helpers.js';
+import { getDefaultStore } from '../stores.js';
 import type { Order, OrderStatus, PaymentMethod, OrderWithItems } from '../types.js';
 
 export const ordersRouter = Router();
@@ -82,9 +83,17 @@ ordersRouter.post('/', async (req, res) => {
       ? raw.customer_name.trim().slice(0, 200)
       : null;
 
+  // Customer-app orders belong to the default store so sales/earnings add up.
+  const store = await getDefaultStore();
+
   const { data, error } = await supabase
     .from('orders')
-    .insert({ customer_name: customerName, status: 'open', total: 0 })
+    .insert({
+      customer_name: customerName,
+      status: 'open',
+      total: 0,
+      store_id: store.id,
+    })
     .select()
     .single();
   if (error) return res.status(500).json({ error: error.message });

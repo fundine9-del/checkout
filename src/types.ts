@@ -50,3 +50,11 @@ export interface OrderItem {
 export interface OrderWithItems extends Order {
   items: OrderItem[];
 }
+
+export interface Supermarket {
+  id: string;
+  owner_id: string | null;
+  name: string;
+  is_default: boolean;
+  created_at: string;
+}
