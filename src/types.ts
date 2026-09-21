@@ -31,8 +31,35 @@ export interface Order {
   status: OrderStatus;
   payment_method: PaymentMethod | null;
   total: number;
+  store_id: string | null;
   created_at: string;
   paid_at: string | null;
+}
+
+export interface Wallet {
+  id: string;
+  store_id: string;
+  currency: string;
+  balance: number;
+  total_in: number;
+  total_out: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletTransaction {
+  id: string;
+  wallet_id: string;
+  store_id: string;
+  order_id: string | null;
+  type: 'payment' | 'refund' | 'withdrawal' | 'deposit';
+  amount: number;
+  balance_after: number;
+  payment_method: PaymentMethod | null;
+  status: 'pending' | 'completed' | 'failed';
+  reference: string | null;
+  description: string | null;
+  created_at: string;
 }
 
 export interface OrderItem {

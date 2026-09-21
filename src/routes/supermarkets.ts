@@ -2,6 +2,7 @@ import { Router, type RequestHandler, type Response } from 'express';
 import { supabase } from '../db.js';
 import { requireAuth, type AuthedRequest } from '../auth.js';
 import { getStoreByOwner } from '../stores.js';
+import { getWalletForStore, recentTransactions } from '../wallet.js';
 import { money, normItem, normOrder, normOrderItem, toNumber } from '../helpers.js';
 import type { Supermarket } from '../types.js';
 
@@ -341,6 +342,9 @@ supermarketsRouter.get(
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
 
+    // Wallet balance for the store (null if the wallets migration is pending).
+    const wallet = await getWalletForStore(store.id).catch(() => null);
+
     res.json({
       stats: {
         revenue,
@@ -349,7 +353,33 @@ supermarketsRouter.get(
         today_orders_count: todaySales.length,
         avg_order_value: sales.length > 0 ? money(revenue / sales.length) : 0,
         top_products: topProducts,
+        wallet: wallet
+          ? {
+              balance: money(wallet.balance),
+              currency: wallet.currency,
+              total_in: money(wallet.total_in),
+              total_out: money(wallet.total_out),
+            }
+          : null,
       },
     });
+  }),
+);
+
+// GET /api/supermarkets/me/transactions  -> recent wallet ledger entries
+supermarketsRouter.get(
+  '/me/transactions',
+  authed(async (req, res) => {
+    const store = await requireStore(req, res);
+    if (!store) return;
+
+    try {
+      const transactions = await recentTransactions(store.id);
+      res.json({ transactions });
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Failed to load transactions',
+      });
+    }
   }),
 );

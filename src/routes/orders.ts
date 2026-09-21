@@ -2,6 +2,7 @@ import { Router, type Response } from 'express';
 import { supabase } from '../db.js';
 import { computeTotal, money, normOrder, normOrderItem, toNumber } from '../helpers.js';
 import { getDefaultStore } from '../stores.js';
+import { creditOrderPayment } from '../wallet.js';
 import type { Order, OrderStatus, PaymentMethod, OrderWithItems } from '../types.js';
 
 export const ordersRouter = Router();
@@ -330,6 +331,15 @@ ordersRouter.post('/:id/checkout', async (req, res) => {
   if (paidErr) throw paidErr;
 
   const paid = normOrder(paidRow as unknown as Record<string, unknown>);
+
+  // 4) Credit the store's wallet (simulated payment -> ledger + balance).
+  //    A failure is logged but doesn't fail the response: the order is paid
+  //    and the wallet can be reconciled by re-running the migration backfill.
+  const storeId = paid.store_id ?? (await getDefaultStore()).id;
+  await creditOrderPayment(storeId, paid.id, total, paymentMethod).catch((err) => {
+    console.error(`Wallet credit failed for order ${paid.id}:`, err);
+  });
+
   res.json({
     order: await attachItems(paid),
     receipt: {
