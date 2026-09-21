@@ -33,6 +33,7 @@ app.get('/', (_req: Request, res: Response) => {
       'DELETE /api/orders/:id/items/:itemId',
       'POST   /api/orders/:id/checkout (pay & close the order)',
       'GET    /api/stores              (list supermarkets for the kiosk)',
+      'GET    /api/stores/:id          (resolve a store from a QR code)',
       'POST   /api/supermarkets         (register my store, JWT required)',
       'GET    /api/supermarkets/me      (my store)',
       'GET    /api/supermarkets/me/items',
