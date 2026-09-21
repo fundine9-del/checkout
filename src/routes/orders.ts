@@ -1,5 +1,6 @@
 import { Router, type Response } from 'express';
 import { supabase } from '../db.js';
+import { resolveItemByBarcode } from '../catalogue.js';
 import { computeTotal, money, normOrder, normOrderItem, toNumber } from '../helpers.js';
 import { getDefaultStore } from '../stores.js';
 import { creditOrderPayment } from '../wallet.js';
@@ -57,21 +58,17 @@ function requireOpenOrder(order: Order | null, res: Response): order is Order {
   return true;
 }
 
-async function getItemForBarcode(barcode: string, res: Response) {
-  const { data, error } = await supabase
-    .from('items')
-    .select('id, barcode, name, price, stock')
-    .eq('barcode', barcode)
-    .maybeSingle();
-  if (error) {
-    res.status(500).json({ error: error.message });
-    return null;
-  }
-  if (!data) {
+async function getItemForBarcode(
+  barcode: string,
+  res: Response,
+  storeId?: string | null,
+) {
+  const item = await resolveItemByBarcode(barcode, storeId);
+  if (!item) {
     res.status(404).json({ error: `No item found for barcode '${barcode}'` });
     return null;
   }
-  return data;
+  return item;
 }
 
 async function getStoreName(storeId: string | null): Promise<string | null> {
@@ -197,7 +194,10 @@ ordersRouter.post('/:id/items', async (req, res) => {
     req.body.quantity === undefined ? 1 : parsePositiveInt(req.body.quantity, res);
   if (quantity === 'invalid') return;
 
-  const item = await getItemForBarcode(barcode, res);
+  // Resolve the barcode within THIS order's store catalogue: store-owned
+  // products first, then the shared base catalogue. Another store's private
+  // products never resolve here.
+  const item = await getItemForBarcode(barcode, res, order.store_id);
   if (!item) return;
   const available = toNumber(item.stock);
   if (available < quantity) {

@@ -1,5 +1,6 @@
 import { Router, type Response } from 'express';
 import { supabase } from '../db.js';
+import { resolveItemByBarcode } from '../catalogue.js';
 import { money, normItem, toNumber } from '../helpers.js';
 import type { ItemInput } from '../types.js';
 
@@ -57,14 +58,14 @@ itemsRouter.get('/', async (req, res) => {
 
 itemsRouter.get('/barcode/:barcode', async (req, res) => {
   const { barcode } = req.params;
-  const { data, error } = await supabase
-    .from('items')
-    .select('*')
-    .eq('barcode', barcode)
-    .maybeSingle();
-  if (error) return res.status(500).json({ error: error.message });
-  if (!data) return res.status(404).json({ error: `No item found for barcode '${barcode}'` });
-  res.json({ item: normItem(data) });
+  // Optional ?store=<id> scopes the lookup like the cart does (own products +
+  // shared base catalogue); without it the lookup stays global for legacy
+  // scanner clients.
+  const { store } = req.query as { store?: string };
+  const storeId = store && store.trim() !== '' ? store.trim() : null;
+  const item = await resolveItemByBarcode(barcode, storeId);
+  if (!item) return res.status(404).json({ error: `No item found for barcode '${barcode}'` });
+  res.json({ item: normItem(item as unknown as Record<string, unknown>) });
 });
 
 itemsRouter.post('/', async (req, res) => {

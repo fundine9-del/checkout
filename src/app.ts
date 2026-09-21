@@ -19,7 +19,7 @@ app.get('/', (_req: Request, res: Response) => {
     endpoints: [
       'GET    /health',
       'GET    /api/items',
-      'GET    /api/items/barcode/:barcode',
+      'GET    /api/items/barcode/:barcode  (?store=<id> scopes to that store)',
       'POST   /api/items',
       'PATCH  /api/items/:id',
       'DELETE /api/items/:id',
