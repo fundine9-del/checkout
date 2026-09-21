@@ -3,7 +3,7 @@ import { supabase } from '../db.js';
 import { computeTotal, money, normOrder, normOrderItem, toNumber } from '../helpers.js';
 import { getDefaultStore } from '../stores.js';
 import { creditOrderPayment } from '../wallet.js';
-import type { Order, OrderStatus, PaymentMethod, OrderWithItems } from '../types.js';
+import type { Order, OrderItem, OrderStatus, PaymentMethod, OrderWithItems } from '../types.js';
 
 export const ordersRouter = Router();
 
@@ -74,6 +74,41 @@ async function getItemForBarcode(barcode: string, res: Response) {
   return data;
 }
 
+async function getStoreName(storeId: string | null): Promise<string | null> {
+  if (!storeId) return null;
+  const { data } = await supabase
+    .from('supermarkets')
+    .select('name')
+    .eq('id', storeId)
+    .maybeSingle();
+  return data ? String(data.name) : null;
+}
+
+/** Builds the receipt payload for a paid order (shared by checkout + re-print). */
+async function buildReceipt(
+  order: Order,
+  items: OrderItem[],
+  total: number,
+  paymentMethod: string,
+) {
+  const storeName = await getStoreName(order.store_id);
+  return {
+    store_name: storeName,
+    customer_name: order.customer_name,
+    order_id: order.id,
+    payment_method: paymentMethod,
+    total,
+    paid_at: order.paid_at,
+    items: items.map((i) => ({
+      barcode: i.barcode,
+      name: i.name,
+      quantity: i.quantity,
+      unit_price: money(i.price),
+      line_total: money(i.price * i.quantity),
+    })),
+  };
+}
+
 // ---------------------------------------------------------------- routes
 
 // POST /api/orders  { customer_name? }  -> start a new shopping session
@@ -128,6 +163,27 @@ ordersRouter.get('/:id', async (req, res) => {
   const order = await fetchOrder(req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
   res.json({ order: await attachItems(order) });
+});
+
+// GET /api/orders/:id/receipt  -> re-print a paid order's receipt
+ordersRouter.get('/:id/receipt', async (req, res) => {
+  const order = await fetchOrder(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Order not found' });
+  if (order.status !== 'paid') {
+    return res.status(409).json({ error: 'Order is not paid yet' });
+  }
+
+  const { data: lineRows, error } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', order.id)
+    .order('created_at');
+  if (error) return res.status(500).json({ error: error.message });
+
+  const items = (lineRows ?? []).map(normOrderItem);
+  const total = computeTotal(items);
+  const method = order.payment_method ?? 'cash';
+  res.json({ receipt: await buildReceipt(order, items, total, method) });
 });
 
 // POST /api/orders/:id/items  { barcode, quantity? }  -> scan an item into the cart
@@ -354,18 +410,6 @@ ordersRouter.post('/:id/checkout', async (req, res) => {
 
   res.json({
     order: await attachItems(paid),
-    receipt: {
-      order_id: paid.id,
-      payment_method: paymentMethod,
-      total,
-      paid_at: paid.paid_at,
-      items: items.map((i) => ({
-        barcode: i.barcode,
-        name: i.name,
-        quantity: i.quantity,
-        unit_price: money(i.price),
-        line_total: money(i.price * i.quantity),
-      })),
-    },
+    receipt: await buildReceipt(paid, items, total, paymentMethod),
   });
 });

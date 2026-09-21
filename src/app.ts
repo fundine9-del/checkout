@@ -27,6 +27,7 @@ app.get('/', (_req: Request, res: Response) => {
       'POST   /api/orders',
       'GET    /api/orders',
       'GET    /api/orders/:id',
+      'GET    /api/orders/:id/receipt  (re-print a paid receipt)',
       'POST   /api/orders/:id/items    (scan a barcode into the cart)',
       'PATCH  /api/orders/:id/items/:itemId',
       'DELETE /api/orders/:id/items/:itemId',
