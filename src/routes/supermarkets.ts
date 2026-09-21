@@ -3,6 +3,7 @@ import { supabase } from '../db.js';
 import { requireAuth, type AuthedRequest } from '../auth.js';
 import { getStoreByOwner } from '../stores.js';
 import { getWalletForStore, recentTransactions } from '../wallet.js';
+import { INTEGRATION_KEY_PREFIX, issueApiKey } from '../integration.js';
 import { money, normItem, normOrder, normOrderItem, toNumber } from '../helpers.js';
 import type { Supermarket } from '../types.js';
 
@@ -67,6 +68,33 @@ supermarketsRouter.get(
   authed(async (req, res) => {
     const store = await requireStore(req, res);
     if (store) res.json({ supermarket: store });
+  }),
+);
+
+// GET /api/supermarkets/me/integration -> the store's partner API key + docs
+supermarketsRouter.get(
+  '/me/integration',
+  authed(async (req, res) => {
+    const store = await requireStore(req, res);
+    if (!store) return;
+
+    res.json({
+      store_id: store.id,
+      store_name: store.name,
+      api_key: issueApiKey(store.id),
+      key_prefix: INTEGRATION_KEY_PREFIX,
+      base_url: '/api/v1/integrations',
+      auth_header: 'Authorization: Bearer <api_key>',
+      endpoints: [
+        'GET    /',
+        'GET    /products (?search=, ?category=)',
+        'GET    /products/:barcode',
+        'POST   /sync/products   (push catalogue)',
+        'POST   /sync/inventory  (push stock levels)',
+        'POST   /orders          (record a POS sale)',
+        'GET    /orders/:orderId',
+      ],
+    });
   }),
 );
 

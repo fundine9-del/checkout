@@ -19,6 +19,9 @@ export const config = {
     'VITE_SUPABASE_SERVICEROLE_KEY',
     'VITE_SUPABASE_SERVICE_ROLE_KEY',
   ),
+  // Optional. Signs partner integration API keys. Without it a stable
+  // fallback is derived from the service-role key (see integration.ts).
+  integrationSecret: firstOf('INTEGRATION_SECRET'),
 } as const;
 
 /** Fails fast with a clear message if required env vars are missing. */

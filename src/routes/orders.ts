@@ -2,9 +2,10 @@ import { Router, type Response } from 'express';
 import { supabase } from '../db.js';
 import { resolveItemByBarcode } from '../catalogue.js';
 import { computeTotal, money, normOrder, normOrderItem, toNumber } from '../helpers.js';
+import { buildReceipt } from '../receipt.js';
 import { getDefaultStore } from '../stores.js';
 import { creditOrderPayment } from '../wallet.js';
-import type { Order, OrderItem, OrderStatus, PaymentMethod, OrderWithItems } from '../types.js';
+import type { Order, OrderStatus, PaymentMethod, OrderWithItems } from '../types.js';
 
 export const ordersRouter = Router();
 
@@ -69,41 +70,6 @@ async function getItemForBarcode(
     return null;
   }
   return item;
-}
-
-async function getStoreName(storeId: string | null): Promise<string | null> {
-  if (!storeId) return null;
-  const { data } = await supabase
-    .from('supermarkets')
-    .select('name')
-    .eq('id', storeId)
-    .maybeSingle();
-  return data ? String(data.name) : null;
-}
-
-/** Builds the receipt payload for a paid order (shared by checkout + re-print). */
-async function buildReceipt(
-  order: Order,
-  items: OrderItem[],
-  total: number,
-  paymentMethod: string,
-) {
-  const storeName = await getStoreName(order.store_id);
-  return {
-    store_name: storeName,
-    customer_name: order.customer_name,
-    order_id: order.id,
-    payment_method: paymentMethod,
-    total,
-    paid_at: order.paid_at,
-    items: items.map((i) => ({
-      barcode: i.barcode,
-      name: i.name,
-      quantity: i.quantity,
-      unit_price: money(i.price),
-      line_total: money(i.price * i.quantity),
-    })),
-  };
 }
 
 // ---------------------------------------------------------------- routes

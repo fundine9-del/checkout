@@ -4,7 +4,7 @@ import { itemsRouter } from './routes/items.js';
 import { ordersRouter } from './routes/orders.js';
 import { storesRouter } from './routes/stores.js';
 import { supermarketsRouter } from './routes/supermarkets.js';
-import { syncRouter } from './routes/sync.js';
+import { integrationsRouter } from './routes/integrations.js';
 
 export const app = express();
 
@@ -23,7 +23,6 @@ app.get('/', (_req: Request, res: Response) => {
       'POST   /api/items',
       'PATCH  /api/items/:id',
       'DELETE /api/items/:id',
-      'POST   /api/sync/items          (bulk sync catalogue by barcode)',
       'POST   /api/orders',
       'GET    /api/orders',
       'GET    /api/orders/:id',
@@ -42,6 +41,17 @@ app.get('/', (_req: Request, res: Response) => {
       'DELETE /api/supermarkets/me/items/:id',
       'GET    /api/supermarkets/me/sales',
       'GET    /api/supermarkets/me/stats (earnings)',
+      'GET    /api/supermarkets/me/integration (my store partner API key)',
+      '',
+      '--- Partner integration API (supermarket POS -> Check Out) ---',
+      'All endpoints below need:  Authorization: Bearer <sk_live_...>',
+      'GET    /api/v1/integrations',
+      'GET    /api/v1/integrations/products',
+      'GET    /api/v1/integrations/products/:barcode',
+      'POST   /api/v1/integrations/sync/products  (push catalogue)',
+      'POST   /api/v1/integrations/sync/inventory (push stock levels)',
+      'POST   /api/v1/integrations/orders         (record a POS sale)',
+      'GET    /api/v1/integrations/orders/:orderId',
     ],
   });
 });
@@ -54,7 +64,7 @@ app.use('/api/items', itemsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/stores', storesRouter);
 app.use('/api/supermarkets', supermarketsRouter);
-app.use('/api/sync', syncRouter);
+app.use('/api/v1/integrations', integrationsRouter);
 
 // 404 for unknown routes
 app.use((_req: Request, res: Response) => {
