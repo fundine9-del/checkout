@@ -78,14 +78,26 @@ async function getItemForBarcode(barcode: string, res: Response) {
 
 // POST /api/orders  { customer_name? }  -> start a new shopping session
 ordersRouter.post('/', async (req, res) => {
-  const raw = (req.body ?? {}) as { customer_name?: unknown };
+  const raw = (req.body ?? {}) as { customer_name?: unknown; store_id?: unknown };
   const customerName =
     typeof raw.customer_name === 'string' && raw.customer_name.trim() !== ''
       ? raw.customer_name.trim().slice(0, 200)
       : null;
 
-  // Customer-app orders belong to the default store so sales/earnings add up.
-  const store = await getDefaultStore();
+  // Customer-app orders belong to a store the kiosk selected. The server
+  // validates that store exists and falls back to the default store when no
+  // (valid) store_id is supplied — old behaviour preserved.
+  const requested = typeof raw.store_id === 'string' ? raw.store_id.trim() : '';
+  let storeId = '';
+  if (requested !== '') {
+    const { data: found } = await supabase
+      .from('supermarkets')
+      .select('id')
+      .eq('id', requested)
+      .maybeSingle();
+    if (found) storeId = String(found.id);
+  }
+  if (storeId === '') storeId = (await getDefaultStore()).id;
 
   const { data, error } = await supabase
     .from('orders')
@@ -93,7 +105,7 @@ ordersRouter.post('/', async (req, res) => {
       customer_name: customerName,
       status: 'open',
       total: 0,
-      store_id: store.id,
+      store_id: storeId,
     })
     .select()
     .single();

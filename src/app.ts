@@ -2,6 +2,7 @@ import cors from 'cors';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { itemsRouter } from './routes/items.js';
 import { ordersRouter } from './routes/orders.js';
+import { storesRouter } from './routes/stores.js';
 import { supermarketsRouter } from './routes/supermarkets.js';
 import { syncRouter } from './routes/sync.js';
 
@@ -30,6 +31,7 @@ app.get('/', (_req: Request, res: Response) => {
       'PATCH  /api/orders/:id/items/:itemId',
       'DELETE /api/orders/:id/items/:itemId',
       'POST   /api/orders/:id/checkout (pay & close the order)',
+      'GET    /api/stores              (list supermarkets for the kiosk)',
       'POST   /api/supermarkets         (register my store, JWT required)',
       'GET    /api/supermarkets/me      (my store)',
       'GET    /api/supermarkets/me/items',
@@ -48,6 +50,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 app.use('/api/items', itemsRouter);
 app.use('/api/orders', ordersRouter);
+app.use('/api/stores', storesRouter);
 app.use('/api/supermarkets', supermarketsRouter);
 app.use('/api/sync', syncRouter);
 
