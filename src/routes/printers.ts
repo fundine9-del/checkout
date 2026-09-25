@@ -84,6 +84,70 @@ async function withConnection(printer: Printer): Promise<PrinterWithConnection> 
   return { ...printer, connection: await connectionFor(printer.id) };
 }
 
+// ------------------------------------------------------ receipt queueing
+
+type QueueReceiptResult =
+  | { ok: true; job: PrintJob }
+  | { ok: false; status: number; message: string };
+
+/**
+ * Resolves a paid order to a receipt snapshot and queues it for a printer —
+ * shared by the store-authed path (till scans a customer receipt QR) and the
+ * token-gated path (customer scans a printer QR). When `ownerStoreId` is
+ * given the order must belong to that store.
+ */
+async function queueReceipt(
+  printerId: string,
+  orderId: string,
+  ownerStoreId: string | undefined,
+): Promise<QueueReceiptResult> {
+  const { data: orderRow, error: orderError } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (orderError) return { ok: false, status: 500, message: orderError.message };
+  if (!orderRow) return { ok: false, status: 404, message: 'Order not found' };
+  if (ownerStoreId !== undefined && String(orderRow.store_id) !== ownerStoreId) {
+    return { ok: false, status: 404, message: 'Order not found' };
+  }
+
+  const order = normOrder(orderRow);
+  if (order.status !== 'paid') {
+    return { ok: false, status: 409, message: 'Order is not paid yet' };
+  }
+
+  const { data: lineRows, error: linesError } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', order.id)
+    .order('created_at');
+  if (linesError) return { ok: false, status: 500, message: linesError.message };
+
+  const items = (lineRows ?? []).map(normOrderItem);
+  const total = computeTotal(items);
+  const payload = await buildReceipt(order, items, total, order.payment_method ?? 'cash');
+
+  const { data: jobRow, error: jobError } = await supabase
+    .from('print_jobs')
+    .insert({ printer_id: printerId, order_id: order.id, status: 'pending', payload })
+    .select()
+    .single();
+  if (jobError) return { ok: false, status: 500, message: jobError.message };
+
+  return { ok: true, job: jobRow as unknown as PrintJob };
+}
+
+function jobSummary(job: PrintJob) {
+  return {
+    id: job.id,
+    printer_id: job.printer_id,
+    order_id: job.order_id,
+    status: job.status,
+    created_at: job.created_at,
+  };
+}
+
 // GET /api/supermarkets/me/printers  -> every printer of this supermarket
 printersRouter.get(
   '/me/printers',
@@ -224,49 +288,9 @@ printersRouter.post(
     const orderId = typeof req.body?.order_id === 'string' ? (req.body.order_id as string) : '';
     if (orderId === '') return res.status(400).json({ error: 'order_id is required' });
 
-    const { data: orderRow, error: orderError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .maybeSingle();
-    if (orderError) return res.status(500).json({ error: orderError.message });
-    if (!orderRow || String(orderRow.store_id) !== store.id) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-    const order = normOrder(orderRow);
-    if (order.status !== 'paid') {
-      return res.status(409).json({ error: 'Order is not paid yet' });
-    }
-
-    const { data: lineRows, error: linesError } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('order_id', order.id)
-      .order('created_at');
-    if (linesError) return res.status(500).json({ error: linesError.message });
-
-    const items = (lineRows ?? []).map(normOrderItem);
-    const total = computeTotal(items);
-    const method = order.payment_method ?? 'cash';
-    const payload = await buildReceipt(order, items, total, method);
-
-    const { data: jobRow, error: jobError } = await supabase
-      .from('print_jobs')
-      .insert({ printer_id: printer.id, order_id: order.id, status: 'pending', payload })
-      .select()
-      .single();
-    if (jobError) return res.status(500).json({ error: jobError.message });
-
-    const job = jobRow as unknown as PrintJob;
-    res.status(201).json({
-      job: {
-        id: job.id,
-        printer_id: job.printer_id,
-        order_id: job.order_id,
-        status: job.status,
-        created_at: job.created_at,
-      },
-    });
+    const result = await queueReceipt(printer.id, orderId, store.id);
+    if (!result.ok) return res.status(result.status).json({ error: result.message });
+    res.status(201).json({ job: jobSummary(result.job) });
   }),
 );
 
@@ -323,6 +347,32 @@ printJobsRouter.get('/', async (req, res) => {
       created_at: j.created_at,
     })),
   });
+});
+
+// POST /api/print-jobs  { printer_id, token, order_id }
+// Token-gated (no JWT): lets a customer's phone queue their own paid receipt
+// to a till printer by scanning the printer's QR. The order must belong to
+// the same store that owns the printer.
+printJobsRouter.post('/', async (req, res) => {
+  const printerId =
+    typeof req.body?.printer_id === 'string' ? (req.body.printer_id as string).trim() : '';
+  const token = typeof req.body?.token === 'string' ? (req.body.token as string).trim() : '';
+  const orderId = typeof req.body?.order_id === 'string' ? (req.body.order_id as string).trim() : '';
+  if (printerId === '' || token === '' || orderId === '') {
+    return res.status(400).json({ error: 'printer_id, token and order_id are required' });
+  }
+
+  const { data: printer } = await supabase
+    .from('printers')
+    .select('*')
+    .eq('id', printerId)
+    .eq('token', token)
+    .maybeSingle();
+  if (!printer) return res.status(401).json({ error: 'Unknown printer or invalid token' });
+
+  const result = await queueReceipt(printerId, orderId, String(printer.store_id));
+  if (!result.ok) return res.status(result.status).json({ error: result.message });
+  res.status(201).json({ job: jobSummary(result.job) });
 });
 
 // POST /api/print-jobs/:id/status  { token, status: 'done'|'failed' }

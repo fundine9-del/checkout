@@ -52,6 +52,7 @@ app.get('/', (_req: Request, res: Response) => {
       '',
       '--- Printer Agent API (token of the printer, no JWT) ---',
       'GET    /api/print-jobs?printer_id=<PRN-...>&token=<token> (claim jobs)',
+      'POST   /api/print-jobs { printer_id, token, order_id } (customer scans a printer QR)',
       'POST   /api/print-jobs/:id/status { token, status: done|failed }',
       '',
       '--- Partner integration API (supermarket POS -> Check Out) ---',
