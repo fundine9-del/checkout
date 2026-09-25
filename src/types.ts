@@ -85,3 +85,41 @@ export interface Supermarket {
   is_default: boolean;
   created_at: string;
 }
+
+// ------------------------------------------------------------ printers
+
+/** A registered receipt printer (PRN-XXXXXX) for one supermarket till. */
+export interface Printer {
+  id: string;
+  store_id: string;
+  till: string;
+  /** Secret used by the Printer Agent to poll for jobs. */
+  token: string;
+  created_at: string;
+}
+
+/** The till/device currently bonded to a printer. */
+export interface PrinterConnection {
+  id: string;
+  printer_id: string;
+  device: string | null;
+  connected_at: string;
+  last_seen: string;
+}
+
+export interface PrinterWithConnection extends Printer {
+  connection: PrinterConnection | null;
+}
+
+export type PrintJobStatus = 'pending' | 'printing' | 'done' | 'failed';
+
+/** A receipt queued for a printer, awaited by the Printer Agent. */
+export interface PrintJob {
+  id: string;
+  printer_id: string;
+  order_id: string;
+  status: PrintJobStatus;
+  /** Receipt JSON snapshot (buildReceipt shape) — no store auth needed. */
+  payload: unknown;
+  created_at: string;
+}
