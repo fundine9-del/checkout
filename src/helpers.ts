@@ -20,7 +20,12 @@ export function readablePrice(value: number): string {
 type AnyRow = Record<string, unknown>;
 
 export function normItem(row: AnyRow): Item {
-  return { ...row, price: toNumber(row.price), stock: toNumber(row.stock) } as unknown as Item;
+  return {
+    ...row,
+    price: toNumber(row.price),
+    stock: toNumber(row.stock),
+    vat_rate: toNumber(row.vat_rate),
+  } as unknown as Item;
 }
 
 export function normOrder(row: AnyRow): Order {
@@ -31,5 +36,9 @@ export function normOrder(row: AnyRow): Order {
 }
 
 export function normOrderItem(row: AnyRow): OrderItem {
-  return { ...row, price: toNumber(row.price) } as unknown as OrderItem;
+  return {
+    ...row,
+    price: toNumber(row.price),
+    vat_rate: toNumber(row.vat_rate),
+  } as unknown as OrderItem;
 }

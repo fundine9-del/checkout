@@ -206,6 +206,7 @@ ordersRouter.post('/:id/items', async (req, res) => {
         barcode: item.barcode,
         name: item.name,
         price: toNumber(item.price),
+        vat_rate: toNumber(item.vat_rate),
         quantity,
       })
       .select()
@@ -310,6 +311,21 @@ ordersRouter.post('/:id/checkout', async (req, res) => {
   }
   const total = computeTotal(items);
 
+  // Optional cash tender — lets the till receipt show CASH / CHANGE. Ignored
+  // for card/mobile in the renderers, but validated whenever it's supplied.
+  const rawTendered = (req.body as { tendered?: unknown }).tendered;
+  let tendered: number | null = null;
+  if (rawTendered !== undefined && rawTendered !== null) {
+    const t = toNumber(rawTendered);
+    if (!Number.isFinite(t) || t < 0) {
+      return res.status(400).json({ error: 'tendered must be a non-negative number' });
+    }
+    if (t < total) {
+      return res.status(400).json({ error: 'Tendered amount is less than the total' });
+    }
+    tendered = money(t);
+  }
+
   // 1) Verify every line still has enough stock before charging anything.
   for (const line of items) {
     if (!line.item_id) continue; // catalogue item was deleted; keep the snapshot
@@ -376,6 +392,6 @@ ordersRouter.post('/:id/checkout', async (req, res) => {
 
   res.json({
     order: await attachItems(paid),
-    receipt: await buildReceipt(paid, items, total, paymentMethod),
+    receipt: await buildReceipt(paid, items, total, paymentMethod, tendered),
   });
 });

@@ -71,6 +71,44 @@ supermarketsRouter.get(
   }),
 );
 
+// PATCH /api/supermarkets/me -> update my store's receipt identity.
+// Name, VAT #, PIN and till number are printed at the top of receipts.
+supermarketsRouter.patch(
+  '/me',
+  authed(async (req, res) => {
+    const store = await requireStore(req, res);
+    if (!store) return;
+
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const patch: Record<string, unknown> = {};
+    if (typeof b.name === 'string' && b.name.trim() !== '') {
+      patch.name = b.name.trim().slice(0, 120);
+    }
+    for (const field of ['vat_number', 'pin', 'till_number'] as const) {
+      const value = b[field];
+      if (value === undefined || value === null) continue;
+      if (typeof value !== 'string') {
+        res.status(400).json({ error: `${field} must be a string` });
+        return;
+      }
+      const trimmed = value.trim();
+      patch[field] = trimmed === '' ? null : trimmed.slice(0, 40);
+    }
+
+    const { data, error } = await supabase
+      .from('supermarkets')
+      .update(patch)
+      .eq('id', store.id)
+      .select()
+      .single();
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    res.json({ supermarket: normStore(data) });
+  }),
+);
+
 // GET /api/supermarkets/me/integration -> the store's partner API key + docs
 supermarketsRouter.get(
   '/me/integration',
@@ -156,6 +194,11 @@ supermarketsRouter.post(
       res.status(400).json({ error: 'stock must be a non-negative integer' });
       return;
     }
+    const vatRate = b.vat_rate === undefined ? 16 : toNumber(b.vat_rate);
+    if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
+      res.status(400).json({ error: 'vat_rate must be a percentage between 0 and 100' });
+      return;
+    }
 
     const { data, error } = await supabase
       .from('items')
@@ -164,6 +207,7 @@ supermarketsRouter.post(
         name: b.name.trim(),
         price: money(price),
         stock,
+        vat_rate: vatRate,
         category:
           typeof b.category === 'string' && b.category.trim() !== ''
             ? b.category.trim()
@@ -224,6 +268,14 @@ supermarketsRouter.patch(
         return;
       }
       patch.stock = stock;
+    }
+    if (b.vat_rate !== undefined) {
+      const vatRate = toNumber(b.vat_rate);
+      if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
+        res.status(400).json({ error: 'vat_rate must be a percentage between 0 and 100' });
+        return;
+      }
+      patch.vat_rate = vatRate;
     }
     if (b.category !== undefined) {
       patch.category =

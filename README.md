@@ -77,11 +77,11 @@ Check it's alive: <http://localhost:3000/health>
 
 | Method | Path                          | Description                                    |
 | ------ | ----------------------------- | ---------------------------------------------- |
-| GET    | `/api/items`                  | List items (`?search=` by name/barcode, `?category=`) |
-| GET    | `/api/items/barcode/:code`    | Look up one item by barcode (the scan lookup)  |
-| POST   | `/api/items`                  | Add one item                                   |
-| PATCH  | `/api/items/:id`              | Update one item                                |
-| DELETE | `/api/items/:id`              | Remove one item                                |
+| GET    | `/api/items`                  | List items (`?search=` by name/barcode, `?category=`) — public, read-only |
+| GET    | `/api/items/barcode/:code`    | Look up one item by barcode (the scan lookup) — public, read-only |
+| POST   | `/api/items`                  | Add a product **to your own store** (store JWT) |
+| PATCH  | `/api/items/:id`              | Update **one of your own products** (store JWT) |
+| DELETE | `/api/items/:id`              | Remove **one of your own products** (store JWT) |
 | POST   | `/api/sync/items`             | **Bulk sync** the supermarket feed (upsert by barcode) |
 
 ### Cart & checkout

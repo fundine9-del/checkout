@@ -6,9 +6,10 @@ export interface CatalogueItem {
   name: string;
   price: number;
   stock: number;
+  vat_rate: number;
 }
 
-const CATALOGUE_COLUMNS = 'id, barcode, name, price, stock';
+const CATALOGUE_COLUMNS = 'id, barcode, name, price, stock, vat_rate';
 
 /**
  * Resolves a barcode within a store's catalogue: the store's own products

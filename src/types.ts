@@ -9,6 +9,7 @@ export interface Item {
   price: number;
   category: string | null;
   stock: number;
+  vat_rate: number;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +20,7 @@ export interface ItemInput {
   price: number;
   category?: string | null;
   stock?: number;
+  vat_rate?: number | null;
   updated_at?: string;
 }
 
@@ -71,6 +73,8 @@ export interface OrderItem {
   /** Price snapshot at scan time (KES). */
   price: number;
   quantity: number;
+  /** VAT rate snapshot at scan time (percent); 0 = zero-rated. */
+  vat_rate: number;
   created_at: string;
 }
 
@@ -83,7 +87,52 @@ export interface Supermarket {
   owner_id: string | null;
   name: string;
   is_default: boolean;
+  vat_number: string | null;
+  pin: string | null;
+  till_number: string | null;
   created_at: string;
+}
+
+// ------------------------------------------------------------ receipts
+
+export interface ReceiptLine {
+  barcode: string | null;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  /** VAT rate snapshot at scan time (percent); 0 = zero-rated. */
+  vat_rate: number;
+  /** Receipt tax code (A/B/C…) assigned by rate, highest first. */
+  tax_code: string;
+}
+
+export interface ReceiptVatRow {
+  code: string;
+  rate: number;
+  vatable: number;
+  vat: number;
+}
+
+/** The fiscal receipt snapshot returned by checkout and re-print. */
+export interface Receipt {
+  store_name: string | null;
+  vat_number: string | null;
+  pin: string | null;
+  till_number: string | null;
+  customer_name: string | null;
+  order_id: string;
+  payment_method: string;
+  total: number;
+  /** Amount tendered (cash), or null when not captured. */
+  tendered: number | null;
+  change: number | null;
+  paid_at: string | null;
+  items: ReceiptLine[];
+  vat_rows: ReceiptVatRow[];
+  item_count: number;
+  /** Data URL of the checkout-receipt QR code (scan at the till to reprint). */
+  qr_data: string;
 }
 
 // ------------------------------------------------------------ printers
